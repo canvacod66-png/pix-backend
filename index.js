@@ -5,7 +5,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const ACCESS_TOKEN = APP_USR-2242036982054961-083009-865836b0c6479c6fc59ccd36d111a527-3650222029 // vamos colocar isso depois no Render
+const ACCESS_TOKEN = 'APP_USR-2242036982054961-083009-865836b0c6479c6fc59ccd36d111a527-3650222029' // vamos colocar isso depois no Render
 
 app.post('/gerar-pix', async (req, res) => {
   try {
