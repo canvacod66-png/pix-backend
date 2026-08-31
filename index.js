@@ -1,65 +1,70 @@
-const express = require('express');
-const cors = require('cors');
+// ============================================================
+// ROTA NOVA PARA O BACKEND DO RENDER (pix-backend-lmzt.onrender.com)
+// Processa o pagamento com CARTÃO DE CRÉDITO usando o token gerado
+// pelo formulário de cartão (Card Payment Brick) no site.
+//
+// Cole este trecho no mesmo servidor Node.js que já processa o Pix,
+// usando o MESMO Access Token de produção que já está configurado lá.
+// ============================================================
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const express = require('express'); // já deve existir no seu servidor
+// const app = express(); // não recrie o app se ele já existe — apenas adicione a rota abaixo nele
+// app.use(express.json()); // garanta que o body JSON já está sendo interpretado
 
-const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; // vamos colocar isso depois no Render
+const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; // o mesmo token de produção já usado no Pix
 
-app.post('/gerar-pix', async (req, res) => {
+app.post('/criar-pagamento-cartao', async (req, res) => {
   try {
-    const { valor, descricao } = req.body;
+    const dadosCartao = req.body; // dados que vêm prontos do Card Payment Brick (token, installments, payer, etc.)
 
-    if (!valor) {
-      return res.status(400).json({ error: 'Valor é obrigatório' });
-    }
+    const idempotencyKey = 'cartao-' + Date.now() + '-' + Math.random().toString(36).slice(2);
 
-    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+    const resposta = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ACCESS_TOKEN}`,
-        'X-Idempotency-Key': Date.now().toString()
+        'Authorization': 'Bearer ' + ACCESS_TOKEN,
+        'X-Idempotency-Key': idempotencyKey
       },
       body: JSON.stringify({
-        transaction_amount: Number(valor),
-        description: descricao || 'Pedido do cardápio',
-        payment_method_id: 'pix',
+        transaction_amount: Number(dadosCartao.transaction_amount),
+        token: dadosCartao.token,
+        description: 'Pedido - Recanto do Ceviche',
+        installments: Number(dadosCartao.installments),
+        payment_method_id: dadosCartao.payment_method_id,
+        issuer_id: dadosCartao.issuer_id,
         payer: {
-          email: 'teste@teste.com'
+          email: dadosCartao.payer.email,
+          identification: {
+            type: dadosCartao.payer.identification.type,
+            number: dadosCartao.payer.identification.number
+          }
         }
       })
     });
 
-    const data = await response.json();
+    const resultado = await resposta.json();
 
-    if (!response.ok) {
-      console.error(data);
-      return res.status(response.status).json(data);
-    }
-
-    const qrCode = data.point_of_interaction?.transaction_data?.qr_code;
-    const qrCodeBase64 = data.point_of_interaction?.transaction_data?.qr_code_base64;
-
+    // resultado.status pode ser: 'approved', 'in_process', 'rejected'
     res.json({
-      id: data.id,
-      status: data.status,
-      qr_code: qrCode,
-      qr_code_base64: qrCodeBase64
+      status: resultado.status,
+      status_detail: resultado.status_detail,
+      id: resultado.id
     });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao gerar PIX' });
+  } catch (erro) {
+    console.error('Erro ao criar pagamento com cartão:', erro);
+    res.status(500).json({ status: 'error', status_detail: 'erro_interno' });
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('Backend PIX rodando!');
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+// ============================================================
+// IMPORTANTE:
+// 1. MP_ACCESS_TOKEN deve estar configurado como variável de ambiente
+//    no Render (Settings > Environment), com o Access Token de PRODUÇÃO.
+// 2. Depois que o pagamento vier como "approved", é nesse ponto que
+//    você deve disparar a mensagem automática de WhatsApp para o
+//    restaurante (mesma lógica já usada após a confirmação do Pix).
+// 3. Faça o deploy dessa alteração no Render antes de testar o
+//    formulário de cartão no site.
+// ============================================================
