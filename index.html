@@ -1967,7 +1967,7 @@
     <div style="flex:1;"></div>
 
     <div class="fixed-bottom" style="flex-direction:column;">
-      <div class="btn-primary" style="width:100%;" onclick="gerarPix(); showScreen('screen-pix');">OK</div>
+      <div class="btn-primary" style="width:100%;" onclick="showScreen('screen-pix'); criarPixReal();">OK</div>
       <div class="btn-secondary" style="width:100%;" onclick="showScreen('screen-checkout')">Modificar</div>
     </div>
   </div>
@@ -2355,6 +2355,7 @@ function compartilharLoja(){
 
 // ===================== NAVEGAÇÃO =====================
 function goBack(){
+  pararPollingPix();
   if(screenHistory.length > 1){
     screenHistory.pop();
     const prev = screenHistory[screenHistory.length - 1];
@@ -2965,31 +2966,95 @@ function irParaCheckout(){
   showScreen('screen-checkout');
 }
 
-// ===================== PIX (código, QR e timer) =====================
-function gerarCodigoPix(valor){
-  // BR Code (Pix Copia e Cola) simplificado, gerado de forma determinística a partir do pedido
-  const valorStr = valor.toFixed(2);
-  const chave = 'recantodoceviche@pix.com.br';
-  const txid = 'RC' + Date.now().toString().slice(-10);
-  return '00020126580014BR.GOV.BCB.PIX0136' + chave +
-         '520400005303986540' + valorStr.length + valorStr +
-         '5802BR5920RECANTO DO CEVICHE6009SAOPAULO62' +
-         (txid.length + 4) + '05' + txid.length + txid + '6304';
+// ===================== PIX (integração real via backend / Mercado Pago) =====================
+const URL_BACKEND_PIX = 'https://pix-backend-lmzt.onrender.com/criar-pagamento-pix';
+const URL_BACKEND_STATUS_PIX = 'https://pix-backend-lmzt.onrender.com/status-pagamento-pix';
+let pixPollInterval = null;
+let pixPagamentoId = null;
+
+function pararPollingPix(){
+  if(pixPollInterval){
+    clearInterval(pixPollInterval);
+    pixPollInterval = null;
+  }
 }
 
-function gerarPix(){
+function iniciarPollingPix(paymentId){
+  pararPollingPix();
+  pixPagamentoId = paymentId;
+  pixPollInterval = setInterval(() => {
+    fetch(URL_BACKEND_STATUS_PIX + '/' + paymentId)
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('http_' + res.status)))
+      .then(data => {
+        if(data.status === 'approved'){
+          pararPollingPix();
+          const v = calcularValores();
+          document.getElementById('valor-total-cartao').textContent = formatBRL(v.total);
+          showScreen('screen-cartao-sucesso');
+        }
+        // se ainda estiver 'pending', simplesmente continua tentando na próxima checagem
+      })
+      .catch(err => {
+        console.error('Erro ao checar status do Pix:', err);
+        // não para o polling por causa de uma falha isolada de rede — tenta de novo na próxima
+      });
+  }, 5000); // confere a cada 5 segundos
+}
+
+function criarPixReal(){
+  pararPollingPix();
   const v = calcularValores();
-  const codigo = gerarCodigoPix(v.total);
-  document.getElementById('pix-codigo').textContent = codigo;
-  document.getElementById('pix-codigo').dataset.codigo = codigo;
+  const statusEl = document.getElementById('pix-status-msg');
+  const codigoEl = document.getElementById('pix-codigo');
+  const qrImg = document.getElementById('pix-qr-img');
+  const timerEl = document.getElementById('pix-timer');
 
-  // QR Code real, gerado a partir do próprio código Pix Copia e Cola
-  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(codigo);
-  document.getElementById('pix-qr-img').src = qrUrl;
+  codigoEl.textContent = 'Gerando código...';
+  qrImg.src = '';
+  timerEl.textContent = '--:--';
+  statusEl.style.color = 'var(--green)';
+  statusEl.textContent = 'Assim que o pagamento for identificado, seu pedido será enviado automaticamente para o preparo.';
 
-  document.getElementById('valor-total-pix').textContent = formatBRL(v.total);
+  // Usa o telefone já informado no login/cadastro para montar um e-mail válido
+  // exigido pela API do Mercado Pago (não precisa ser um e-mail real do cliente).
+  const telefoneUsuario = (usuarioLogado && usuarioLogado.telefone) ? usuarioLogado.telefone.replace(/\D/g, '') : ('cliente' + Date.now());
+  const emailPagador = telefoneUsuario + '@cliente.recantodoceviche.com.br';
 
-  iniciarContagemRegressiva(15 * 60); // 15 minutos
+  fetch(URL_BACKEND_PIX, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transaction_amount: v.total,
+      description: 'Pedido - Recanto do Ceviche',
+      payer_email: emailPagador
+    })
+  })
+  .then(res => res.ok ? res.json() : Promise.reject(new Error('http_' + res.status)))
+  .then(data => {
+    if(!data.qr_code || !data.id){
+      throw new Error('resposta_incompleta');
+    }
+    codigoEl.textContent = data.qr_code;
+    codigoEl.dataset.codigo = data.qr_code;
+    qrImg.src = 'data:image/png;base64,' + data.qr_code_base64;
+    document.getElementById('valor-total-pix').textContent = formatBRL(v.total);
+
+    iniciarContagemRegressiva(15 * 60); // 15 minutos
+    iniciarPollingPix(data.id); // fica checando automaticamente se o cliente já pagou
+  })
+  .catch(err => {
+    console.error('Erro ao gerar Pix real:', err);
+    codigoEl.textContent = 'Não foi possível gerar o código.';
+    statusEl.style.color = '#E04C4C';
+    const msg = String(err && err.message || err);
+    if(msg.startsWith('http_')){
+      statusEl.textContent = 'Erro ' + msg.replace('http_', '') + ' no servidor de pagamento. (Rota /criar-pagamento-pix pode não estar publicada, ou deu erro interno no Render.)';
+    } else if(msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('load failed') || msg.toLowerCase().includes('networkerror')){
+      statusEl.textContent = 'Não consegui falar com o servidor de pagamento (possível bloqueio de CORS ou servidor fora do ar).';
+    } else {
+      statusEl.textContent = 'Erro ao gerar o Pix (' + msg + '). Tente novamente em instantes.';
+    }
+  });
 }
 
 function copiarCodigoPix(){
