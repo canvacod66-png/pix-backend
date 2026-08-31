@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Recanto do Ceviche — Culinária Peruana | Delivery</title>
 <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18419096472"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18419291081"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', 'AW-18419096472');
+  gtag('config', 'AW-18419291081');
 </script>
 <!-- SDK Mercado Pago (Checkout Bricks - formulário de cartão) -->
 <script src="https://sdk.mercadopago.com/js/v2"></script>
@@ -2418,6 +2418,14 @@ const HORARIOS_FUNCIONAMENTO = {
   5: { abre: '11:30', fecha: '17:00' },
   6: { abre: '11:30', fecha: '16:30' }
 };
+
+// Exceções pontuais de horário por DATA (formato 'AAAA-MM-DD').
+// Usado para casos especiais (ex: loja aberta 24h em um dia específico),
+// sem alterar o horário fixo semanal.
+const EXCECOES_HORARIO = {
+  '2026-08-31': { abre: '00:00', fecha: '23:59' } // aberto 24h só neste dia
+};
+
 const NOMES_DIAS = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
 
 function paraMinutos(horaStr){
@@ -2425,12 +2433,15 @@ function paraMinutos(horaStr){
   return h * 60 + m;
 }
 
-// Obtém dia da semana e hora atual SEMPRE no fuso de São Paulo,
+// Obtém dia da semana, hora atual e a data (AAAA-MM-DD) SEMPRE no fuso de São Paulo,
 // independente do fuso configurado no dispositivo/navegador de quem acessa.
 function obterAgoraSaoPaulo(){
-  const partes = new Intl.DateTimeFormat('en-US', {
+  const partes = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
     weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
@@ -2444,19 +2455,26 @@ function obterAgoraSaoPaulo(){
   let horas = parseInt(mapa.hour, 10);
   if(horas === 24) horas = 0; // alguns navegadores retornam '24' para meia-noite
   const minutos = parseInt(mapa.minute, 10);
+  const dataStr = `${mapa.year}-${mapa.month}-${mapa.day}`; // ex: '2026-08-31'
 
-  return { diaSemana, minutosDoDia: horas * 60 + minutos };
+  return { diaSemana, minutosDoDia: horas * 60 + minutos, dataStr };
+}
+
+// Retorna o horário de funcionamento válido para "hoje": usa a exceção
+// da data específica se existir, senão cai no horário fixo semanal.
+function horarioDeHoje(diaSemana, dataStr){
+  return EXCECOES_HORARIO[dataStr] || HORARIOS_FUNCIONAMENTO[diaSemana];
 }
 
 function lojaEstaAberta(){
-  const { diaSemana, minutosDoDia } = obterAgoraSaoPaulo();
-  const horario = HORARIOS_FUNCIONAMENTO[diaSemana];
+  const { diaSemana, minutosDoDia, dataStr } = obterAgoraSaoPaulo();
+  const horario = horarioDeHoje(diaSemana, dataStr);
   return minutosDoDia >= paraMinutos(horario.abre) && minutosDoDia < paraMinutos(horario.fecha);
 }
 
 function textoProximaAbertura(){
-  const { diaSemana, minutosDoDia } = obterAgoraSaoPaulo();
-  const horarioHoje = HORARIOS_FUNCIONAMENTO[diaSemana];
+  const { diaSemana, minutosDoDia, dataStr } = obterAgoraSaoPaulo();
+  const horarioHoje = horarioDeHoje(diaSemana, dataStr);
 
   if(minutosDoDia < paraMinutos(horarioHoje.abre)){
     return 'Abre hoje às ' + horarioHoje.abre;
