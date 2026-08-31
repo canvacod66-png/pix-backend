@@ -1,21 +1,89 @@
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+app.use(cors()); // libera chamadas vindas do site (Netlify/GitHub Pages)
+app.use(express.json());
+
+const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; // Access Token de PRODUÇÃO do Mercado Pago
+
 // ============================================================
-// ROTA NOVA PARA O BACKEND DO RENDER (pix-backend-lmzt.onrender.com)
-// Processa o pagamento com CARTÃO DE CRÉDITO usando o token gerado
-// pelo formulário de cartão (Card Payment Brick) no site.
-//
-// Cole este trecho no mesmo servidor Node.js que já processa o Pix,
-// usando o MESMO Access Token de produção que já está configurado lá.
+// PIX
 // ============================================================
 
-const express = require('express'); // já deve existir no seu servidor
-// const app = express(); // não recrie o app se ele já existe — apenas adicione a rota abaixo nele
-// app.use(express.json()); // garanta que o body JSON já está sendo interpretado
+// Cria uma cobrança Pix de verdade e devolve o código Copia-e-Cola + QR Code
+app.post('/gerar-pix', async (req, res) => {
+  try {
+    const { valor, descricao } = req.body;
 
-const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; // o mesmo token de produção já usado no Pix
+    const idempotencyKey = 'pix-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+
+    const resposta = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + ACCESS_TOKEN,
+        'X-Idempotency-Key': idempotencyKey
+      },
+      body: JSON.stringify({
+        transaction_amount: Number(valor),
+        description: descricao || 'Pedido - Recanto do Ceviche',
+        payment_method_id: 'pix',
+        payer: {
+          email: 'cliente@recantodoceviche.com.br' // Mercado Pago exige um e-mail, não precisa ser real
+        }
+      })
+    });
+
+    const resultado = await resposta.json();
+
+    if (!resultado.point_of_interaction) {
+      console.error('Falha ao criar Pix:', resultado);
+      return res.status(502).json({ message: 'Não foi possível gerar o Pix', detalhe: resultado });
+    }
+
+    const dadosPix = resultado.point_of_interaction.transaction_data;
+
+    res.json({
+      id: resultado.id,
+      qr_code: dadosPix.qr_code,
+      qr_code_base64: dadosPix.qr_code_base64
+    });
+
+  } catch (erro) {
+    console.error('Erro ao criar pagamento Pix:', erro);
+    res.status(500).json({ message: 'Erro interno ao gerar Pix' });
+  }
+});
+
+// Consulta se o Pix já foi pago
+app.get('/status-pix/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const resposta = await fetch('https://api.mercadopago.com/v1/payments/' + id, {
+      headers: { 'Authorization': 'Bearer ' + ACCESS_TOKEN }
+    });
+    const resultado = await resposta.json();
+
+    res.json({
+      status: resultado.status,          // 'approved', 'pending', 'rejected', 'cancelled', etc.
+      status_detail: resultado.status_detail
+    });
+
+  } catch (erro) {
+    console.error('Erro ao checar status do Pix:', erro);
+    res.status(500).json({ status: 'error' });
+  }
+});
+
+// ============================================================
+// CARTÃO DE CRÉDITO
+// ============================================================
 
 app.post('/criar-pagamento-cartao', async (req, res) => {
   try {
-    const dadosCartao = req.body; // dados que vêm prontos do Card Payment Brick (token, installments, payer, etc.)
+    const dadosCartao = req.body; // vem pronto do Card Payment Brick (token, installments, payer, etc.)
 
     const idempotencyKey = 'cartao-' + Date.now() + '-' + Math.random().toString(36).slice(2);
 
@@ -45,9 +113,8 @@ app.post('/criar-pagamento-cartao', async (req, res) => {
 
     const resultado = await resposta.json();
 
-    // resultado.status pode ser: 'approved', 'in_process', 'rejected'
     res.json({
-      status: resultado.status,
+      status: resultado.status,          // 'approved', 'in_process', 'rejected'
       status_detail: resultado.status_detail,
       id: resultado.id
     });
@@ -59,12 +126,9 @@ app.post('/criar-pagamento-cartao', async (req, res) => {
 });
 
 // ============================================================
-// IMPORTANTE:
-// 1. MP_ACCESS_TOKEN deve estar configurado como variável de ambiente
-//    no Render (Settings > Environment), com o Access Token de PRODUÇÃO.
-// 2. Depois que o pagamento vier como "approved", é nesse ponto que
-//    você deve disparar a mensagem automática de WhatsApp para o
-//    restaurante (mesma lógica já usada após a confirmação do Pix).
-// 3. Faça o deploy dessa alteração no Render antes de testar o
-//    formulário de cartão no site.
+// INICIA O SERVIDOR
 // ============================================================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log('Servidor rodando na porta ' + PORT);
+});
