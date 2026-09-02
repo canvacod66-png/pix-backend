@@ -774,7 +774,7 @@
         <div style="font-weight:800; font-size:18px;" id="barra-sacola-total">R$ 0,00</div>
         <div style="font-size:12px; font-weight:700; color:var(--green);" id="barra-sacola-economia">Economizou R$ 0,00</div>
       </div>
-      <div class="btn-primary" style="display:flex; align-items:center; gap:10px;" onclick="showScreen('screen-carrinho')">
+      <div class="btn-primary" style="display:flex; align-items:center; gap:10px;" onclick="abrirCarrinho()">
         Ver sacola
         <span id="barra-sacola-qtd" style="background:#111; color:#fff; border-radius:50%; width:22px;height:22px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;">0</span>
       </div>
@@ -1776,16 +1776,14 @@
       </div>
     </div>
 
-    <!-- 2.1 Distância da entrega (taxa cobrada por km) -->
+    <!-- 2.1 Distância da entrega (taxa cobrada por km) — somente leitura, calculada pelo sistema -->
     <div class="row-line" style="border-top:1px solid var(--gray-line);">
       <div>
         <div style="font-weight:700; font-size:15px;">Distância até você</div>
         <div style="color:var(--gray-text); font-size:12px; margin-top:2px;">Taxa: R$ 3,00 por km</div>
       </div>
-      <div class="qty-control">
-        <button onclick="alterarDistancia(-0.5)">−</button>
-        <span id="distancia-km" style="font-weight:700;">3.0 km</span>
-        <button onclick="alterarDistancia(0.5)">+</button>
+      <div>
+        <span id="distancia-km" style="font-weight:700; font-size:15px;">3.0 km</span>
       </div>
     </div>
     <div style="padding:0 20px 16px; display:flex; justify-content:flex-end;">
@@ -2631,8 +2629,16 @@ function adicionarAoCarrinho(){
     });
   }
   atualizarBarraSacola();
+  atualizarTelas();
   screenHistory = ['screen-menu'];
   showScreen('screen-menu', true);
+}
+
+// Abre a sacola sempre com a lista de itens atualizada (segurança extra: garante
+// que a tela nunca mostre um estado antigo do carrinho, mesmo se chamada de outro lugar).
+function abrirCarrinho(){
+  atualizarTelas();
+  showScreen('screen-carrinho');
 }
 
 // ===================== QUANTIDADE (TELA CARRINHO) =====================
@@ -2881,11 +2887,10 @@ function setModoEntrega(modo){
   atualizarTelas();
 }
 
-function alterarDistancia(delta){
-  pedido.distanciaKm = Math.max(0, Math.min(LIMITE_ENTREGA_KM, Math.round((pedido.distanciaKm + delta) * 10) / 10));
-  document.getElementById('distancia-km').textContent = pedido.distanciaKm.toFixed(1) + ' km';
-  atualizarTelas();
-}
+// Distância agora é somente leitura no carrinho: é definida automaticamente
+// pela localização confirmada do cliente (ver calcularRotaEntrega / confirmarDistanciaMapa).
+// O botão de +/- foi removido de propósito para impedir que o cliente reduza
+// a distância manualmente e pague uma taxa de entrega menor que a real.
 
 // ===================== MAPA DE DISTÂNCIA REAL (Leaflet + OSRM) =====================
 const LOJA_LATLNG = { lat: -23.61910096142172, lng: -46.69556981684724 }; // Recanto do Ceviche - R. Miguel Sutil, 67 - Vila Cordeiro, São Paulo/SP (coordenada exata do Google Maps)
@@ -3202,13 +3207,24 @@ function renderizarListaCarrinho(){
   const container = document.getElementById('lista-itens-carrinho');
   if(!container) return;
   container.innerHTML = carrinho.map((item, index) => {
-    const imgStyle = item.imgBg ? `background-image:${item.imgBg}; background-size:cover; background-position:center;` : '';
+    // Quando tem foto real, remove a classe "img-placeholder" pra não desenhar
+    // o ícone genérico por cima da foto do prato.
+    const temFoto = !!item.imgBg;
+    const imgClass = temFoto ? '' : 'img-placeholder';
+    // O navegador devolve backgroundImage como url("data:...") com ASPAS DUPLAS.
+    // Como o atributo style="" também usa aspas duplas, isso quebrava o HTML
+    // no meio (por isso a caixinha aparecia em branco/quebrada). Trocamos as
+    // aspas internas por aspas simples pra não conflitar com o atributo.
+    const imgBgSeguro = temFoto ? item.imgBg.replace(/"/g, "'") : '';
+    const imgStyle = temFoto
+      ? `background-image:${imgBgSeguro}; background-size:cover; background-position:center; background-color:var(--gray-bg);`
+      : 'background-color:var(--gray-bg);';
     const precoAntigoHtml = item.precoAntigo > item.preco
       ? ` <span style="color:var(--gray-text); text-decoration:line-through; font-size:13px; font-weight:600;">${formatBRL(item.precoAntigo)}</span>`
       : '';
     return `
       <div style="display:flex; gap:16px; padding:16px 20px; border-top:1px solid var(--gray-line);">
-        <div class="img-placeholder" style="width:60px;height:60px;border-radius:12px; flex-shrink:0; ${imgStyle}"></div>
+        <div class="${imgClass}" style="width:60px;height:60px;border-radius:12px; flex-shrink:0; ${imgStyle}"></div>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:15px;">${item.nome}</div>
           <div style="margin-top:4px;"><span style="color:var(--green); font-weight:700; font-size:14px;">${formatBRL(item.preco)}</span>${precoAntigoHtml}</div>
