@@ -2344,19 +2344,8 @@ function irParaMenuLogado(){
   obterLocalizacaoEatualizarPedido(false);
 }
 
-// Se o cliente já se cadastrou nesse aparelho antes, pula a tela de login e vai direto pro cardápio
-(function tentarLoginAutomatico(){
-  try{
-    const salvo = JSON.parse(localStorage.getItem('recantoCevicheUsuario') || 'null');
-    if(salvo && salvo.telefone){
-      usuarioLogado = salvo;
-      screenHistory = ['screen-menu'];
-      showScreen('screen-menu', true);
-      // atualiza a localização a cada entrada, caso o cliente esteja em outro lugar desta vez
-      obterLocalizacaoEatualizarPedido(false);
-    }
-  }catch(e){ /* localStorage indisponível — mantém a tela de login normalmente */ }
-})();
+// Login sempre obrigatório: o cliente precisa informar telefone e senha
+// toda vez que abrir o site, sem pular direto pro cardápio.
 
 function compartilharLoja(){
   const url = window.location.href;
