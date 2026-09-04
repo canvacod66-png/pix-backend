@@ -1,3 +1,8 @@
+// ============================================================
+// BACKEND COMPLETO - Recanto do Ceviche
+// Rotas: Pix (gerar + checar status) e Cartão de crédito
+// ============================================================
+
 const express = require('express');
 const cors = require('cors');
 
@@ -38,8 +43,12 @@ app.post('/gerar-pix', async (req, res) => {
     const resultado = await resposta.json();
 
     if (!resultado.point_of_interaction) {
-      console.error('Falha ao criar Pix:', resultado);
-      return res.status(502).json({ message: 'Não foi possível gerar o Pix', detalhe: resultado });
+      console.error('Falha ao criar Pix:', JSON.stringify(resultado));
+      return res.status(502).json({
+        message: resultado.message || 'Não foi possível gerar o Pix',
+        causa: resultado.cause || [],
+        detalhe: resultado
+      });
     }
 
     const dadosPix = resultado.point_of_interaction.transaction_data;
@@ -112,6 +121,18 @@ app.post('/criar-pagamento-cartao', async (req, res) => {
     });
 
     const resultado = await resposta.json();
+
+    if (!resposta.ok) {
+      // A REQUISIÇÃO em si falhou (não é o cartão sendo recusado) — o Mercado
+      // Pago manda o motivo detalhado em "message" e "cause". Logamos tudo
+      // aqui pra você conseguir ver a causa real no log do Render.
+      console.error('Mercado Pago recusou a requisição de cartão:', JSON.stringify(resultado));
+      return res.status(400).json({
+        status: 'error',
+        status_detail: resultado.message || 'requisicao_invalida',
+        causa: resultado.cause || []
+      });
+    }
 
     res.json({
       status: resultado.status,          // 'approved', 'in_process', 'rejected'
