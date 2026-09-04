@@ -3418,8 +3418,8 @@ async function renderCardBrick(valor){
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(cardFormData)
           })
-          .then(res => res.ok ? res.json() : Promise.reject(new Error('http_' + res.status)))
-          .then(data => {
+          .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
+          .then(({ data }) => {
             if(data.status === 'approved'){
               document.getElementById('valor-total-cartao').textContent = formatBRL(valor);
               pedido.cartaoId = data.id;
