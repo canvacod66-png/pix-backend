@@ -2720,13 +2720,13 @@ async function salvarPedidoNoBanco(metodoLabel, idPagamento){
 
 // ===================== CÁLCULO DE VALORES =====================
 function calcularValores(){
-  const subtotal = carrinho.reduce((soma, item) => soma + item.preco * item.qty, 0);
+  const subtotal = Math.round(carrinho.reduce((soma, item) => soma + item.preco * item.qty, 0) * 100) / 100;
   const totalItens = carrinho.reduce((soma, item) => soma + item.precoAntigo * item.qty, 0);
   const descontoItem = Math.round((totalItens - subtotal) * 100) / 100;
   const taxaEntregaCheia = Math.round(pedido.distanciaKm * TAXA_POR_KM * 100) / 100;
   const taxaEntrega = pedido.modoEntrega === 'retirada' ? 0 : taxaEntregaCheia;
   const taxaServico = Math.round(subtotal * 0.08 * 100) / 100;
-  const total = subtotal + taxaEntrega + taxaServico + pedido.gorjeta;
+  const total = Math.round((subtotal + taxaEntrega + taxaServico + pedido.gorjeta) * 100) / 100;
   const economizouTotal = Math.round((descontoItem) * 100) / 100;
   return { subtotal, totalItens, descontoItem, taxaEntregaCheia, taxaEntrega, taxaServico, total, economizouTotal };
 }
