@@ -289,7 +289,9 @@
       <div class="btn-secondary" style="margin-top:10px; text-align:center;" onclick="mostrarLogin()">Já tenho uma conta</div>
     </div>
 
-    <div style="padding:24px; text-align:center; color:var(--gray-text); font-size:11px; margin-top:auto;">Ao continuar, você concorda com nossos <span onclick="showScreen('screen-termos')" style="text-decoration:underline; cursor:pointer;">Termos de Uso</span> e <span onclick="showScreen('screen-privacidade')" style="text-decoration:underline; cursor:pointer;">Política de Privacidade</span>.</div>
+    <div style="padding:24px; text-align:center; color:var(--gray-text); font-size:11px; margin-top:auto;">Ao continuar, você concorda com nossos <span onclick="showScreen('screen-termos')" style="text-decoration:underline; cursor:pointer;">Termos de Uso</span> e <span onclick="showScreen('screen-privacidade')" style="text-decoration:underline; cursor:pointer;">Política de Privacidade</span>.
+      <div onclick="showScreen('screen-admin-login')" style="margin-top:10px; color:#ccc; font-size:10px; cursor:pointer;">Acesso administrativo</div>
+    </div>
   </div>
 
   <!-- ===================== TELA 1: CARDÁPIO / RESTAURANTE ===================== -->
@@ -854,6 +856,68 @@
         📞 Telefone: (11) 98729-0725<br>
         📍 Endereço: R. Miguel Sutil, 67 — Vila Cordeiro, São Paulo/SP, 04583-050
       </p>
+    </div>
+  </div>
+
+  <!-- ===================== TELA: LOGIN DO GESTOR (admin) ===================== -->
+  <div class="screen" id="screen-admin-login">
+    <div style="display:flex; align-items:center; gap:14px; padding:20px; border-bottom:1px solid var(--gray-line);">
+      <div class="icon-btn" onclick="goBack()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="font-weight:800; font-size:18px;">Painel administrativo</div>
+    </div>
+
+    <div style="padding:28px 24px;">
+      <div style="font-weight:800; font-size:19px;">Acesso restrito</div>
+      <div style="color:var(--gray-text); font-size:12px; margin-top:6px; margin-bottom:20px;">Somente o gestor da loja pode entrar aqui.</div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <input id="admin-email" type="email" placeholder="E-mail do gestor" style="border:1px solid var(--gray-line); border-radius:12px; padding:14px 16px; font-size:15px; font-family:inherit;">
+        <input id="admin-senha" type="password" placeholder="Senha" style="border:1px solid var(--gray-line); border-radius:12px; padding:14px 16px; font-size:15px; font-family:inherit;">
+      </div>
+      <div id="admin-login-erro" style="color:#E04C4C; font-size:13px; margin-top:8px; display:none;"></div>
+
+      <div class="btn-primary" style="margin-top:20px; text-align:center;" onclick="fazerLoginAdmin()">Entrar</div>
+    </div>
+  </div>
+
+  <!-- ===================== TELA: PAINEL DO GESTOR (pedidos + faturamento) ===================== -->
+  <div class="screen" id="screen-admin-painel">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; padding:20px; border-bottom:1px solid var(--gray-line);">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div class="icon-btn" onclick="goBack()">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div style="font-weight:800; font-size:18px;">Painel do gestor</div>
+      </div>
+      <div onclick="sairAdmin()" style="font-size:12px; color:var(--gray-text); text-decoration:underline; cursor:pointer;">Sair</div>
+    </div>
+
+    <div style="padding:20px;">
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1; background:var(--gray-bg); border-radius:14px; padding:16px;">
+          <div style="font-size:11px; color:var(--gray-text);">Faturamento total</div>
+          <div id="admin-faturamento" style="font-weight:800; font-size:18px; margin-top:4px;">R$ 0,00</div>
+        </div>
+        <div style="flex:1; background:var(--gray-bg); border-radius:14px; padding:16px;">
+          <div style="font-size:11px; color:var(--gray-text);">Pedidos</div>
+          <div id="admin-total-pedidos" style="font-weight:800; font-size:18px; margin-top:4px;">0</div>
+        </div>
+        <div style="flex:1; background:var(--gray-bg); border-radius:14px; padding:16px;">
+          <div style="font-size:11px; color:var(--gray-text);">Ticket médio</div>
+          <div id="admin-ticket-medio" style="font-weight:800; font-size:18px; margin-top:4px;">R$ 0,00</div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:24px;">
+        <div style="font-weight:800; font-size:16px;">Pedidos recentes</div>
+        <div onclick="carregarDadosAdmin()" style="font-size:12px; color:var(--gray-text); text-decoration:underline; cursor:pointer;">Atualizar</div>
+      </div>
+
+      <div id="admin-lista-pedidos" style="margin-top:14px;">
+        <div style="color:var(--gray-text); font-size:13px; text-align:center; padding:20px 0;">Carregando pedidos...</div>
+      </div>
     </div>
   </div>
 
@@ -2687,7 +2751,94 @@ const SUPABASE_URL = 'https://ksrvstlrzhsdgtutovwn.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hsBVCEcjgNUIMQigjlItfw_pCQO93bh';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function salvarPedidoNoBanco(metodoLabel, idPagamento, statusPagamento){
+// ===================== PAINEL DO GESTOR (admin) =====================
+// Login de verdade via Supabase Auth — só funciona se você tiver criado uma
+// conta de usuário no painel do Supabase (Authentication > Users). A proteção
+// real de quem pode LER a tabela 'pedidos' fica nas regras (RLS) do Supabase,
+// não só nesta tela.
+
+async function fazerLoginAdmin(){
+  const email = document.getElementById('admin-email').value.trim();
+  const senha = document.getElementById('admin-senha').value;
+  const erroEl = document.getElementById('admin-login-erro');
+  erroEl.style.display = 'none';
+
+  if(!email || !senha){
+    erroEl.textContent = 'Preencha e-mail e senha.';
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  try{
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: senha });
+    if(error){
+      erroEl.textContent = 'E-mail ou senha incorretos.';
+      erroEl.style.display = 'block';
+      return;
+    }
+    showScreen('screen-admin-painel');
+    carregarDadosAdmin();
+  }catch(erro){
+    erroEl.textContent = 'Não foi possível conectar ao servidor. Tente novamente.';
+    erroEl.style.display = 'block';
+    console.error('Erro no login admin:', erro);
+  }
+}
+
+async function sairAdmin(){
+  try{ await supabaseClient.auth.signOut(); }catch(e){ /* ignora erro de logout */ }
+  showScreen('screen-login');
+}
+
+async function carregarDadosAdmin(){
+  const listaEl = document.getElementById('admin-lista-pedidos');
+  listaEl.innerHTML = '<div style="color:var(--gray-text); font-size:13px; text-align:center; padding:20px 0;">Carregando pedidos...</div>';
+
+  try{
+    const { data: pedidos, error } = await supabaseClient
+      .from('pedidos')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if(error){
+      listaEl.innerHTML = '<div style="color:#E04C4C; font-size:13px; text-align:center; padding:20px 0;">Não foi possível carregar os pedidos. Verifique as permissões (RLS) no Supabase.</div>';
+      console.error('Erro ao carregar pedidos:', error);
+      return;
+    }
+
+    const totalPedidos = pedidos.length;
+    const faturamentoTotal = pedidos.reduce((soma, p) => soma + (Number(p.total) || 0), 0);
+    const ticketMedio = totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0;
+
+    document.getElementById('admin-faturamento').textContent = formatBRL(faturamentoTotal);
+    document.getElementById('admin-total-pedidos').textContent = totalPedidos;
+    document.getElementById('admin-ticket-medio').textContent = formatBRL(ticketMedio);
+
+    if(totalPedidos === 0){
+      listaEl.innerHTML = '<div style="color:var(--gray-text); font-size:13px; text-align:center; padding:20px 0;">Nenhum pedido registrado ainda.</div>';
+      return;
+    }
+
+    listaEl.innerHTML = pedidos.map(p => {
+      const data = p.created_at ? new Date(p.created_at).toLocaleString('pt-BR') : '';
+      const itensTexto = Array.isArray(p.itens) ? p.itens.map(i => (i.qty > 1 ? i.qty + 'x ' : '') + i.nome).join(', ') : '';
+      return `
+        <div style="border-bottom:1px solid var(--gray-line); padding:14px 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:700; font-size:14px;">#${p.numero_comanda || '—'} · ${p.cliente_nome || 'Cliente'}</div>
+            <div style="font-weight:800; font-size:14px; color:var(--green);">${formatBRL(Number(p.total) || 0)}</div>
+          </div>
+          <div style="color:var(--gray-text); font-size:12px; margin-top:4px;">${itensTexto}</div>
+          <div style="color:var(--gray-text); font-size:11px; margin-top:4px;">${data} · ${p.modo_entrega === 'retirada' ? 'Retirada' : 'Entrega'} · ${p.status_pagamento || ''}</div>
+        </div>`;
+    }).join('');
+  }catch(erro){
+    listaEl.innerHTML = '<div style="color:#E04C4C; font-size:13px; text-align:center; padding:20px 0;">Erro ao conectar com o banco de dados.</div>';
+    console.error('Erro ao carregar dados admin:', erro);
+  }
+}
+
+async function salvarPedidoNoBanco(metodoLabel, idPagamento){
   try{
     const v = calcularValores();
     const nomeCompleto = usuarioLogado
@@ -2708,7 +2859,7 @@ async function salvarPedidoNoBanco(metodoLabel, idPagamento, statusPagamento){
       endereco: pedido.modoEntrega === 'entrega' ? (pedido.enderecoTexto || null) : null,
       metodo_pagamento: metodoLabel,
       id_pagamento_mp: String(idPagamento),
-      status_pagamento: statusPagamento || 'approved'
+      status_pagamento: 'approved'
     }]);
     if(error){ console.error('Erro ao salvar pedido no banco:', error); }
   }catch(erro){
@@ -2720,13 +2871,13 @@ async function salvarPedidoNoBanco(metodoLabel, idPagamento, statusPagamento){
 
 // ===================== CÁLCULO DE VALORES =====================
 function calcularValores(){
-  const subtotal = Math.round(carrinho.reduce((soma, item) => soma + item.preco * item.qty, 0) * 100) / 100;
+  const subtotal = carrinho.reduce((soma, item) => soma + item.preco * item.qty, 0);
   const totalItens = carrinho.reduce((soma, item) => soma + item.precoAntigo * item.qty, 0);
   const descontoItem = Math.round((totalItens - subtotal) * 100) / 100;
   const taxaEntregaCheia = Math.round(pedido.distanciaKm * TAXA_POR_KM * 100) / 100;
   const taxaEntrega = pedido.modoEntrega === 'retirada' ? 0 : taxaEntregaCheia;
   const taxaServico = Math.round(subtotal * 0.08 * 100) / 100;
-  const total = Math.round((subtotal + taxaEntrega + taxaServico + pedido.gorjeta) * 100) / 100;
+  const total = subtotal + taxaEntrega + taxaServico + pedido.gorjeta;
   const economizouTotal = Math.round((descontoItem) * 100) / 100;
   return { subtotal, totalItens, descontoItem, taxaEntregaCheia, taxaEntrega, taxaServico, total, economizouTotal };
 }
@@ -3418,23 +3569,13 @@ async function renderCardBrick(valor){
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(cardFormData)
           })
-          .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
-          .then(({ data }) => {
+          .then(res => res.ok ? res.json() : Promise.reject(new Error('http_' + res.status)))
+          .then(data => {
             if(data.status === 'approved'){
               document.getElementById('valor-total-cartao').textContent = formatBRL(valor);
               pedido.cartaoId = data.id;
               showScreen('screen-cartao-sucesso');
               mostrarConfirmacaoPagamento('Cartão de crédito', data.id);
-              resolve();
-            } else if(data.status === 'in_process' || data.status === 'pending'){
-              // Não é recusa: o Mercado Pago colocou o pagamento em análise
-              // antifraude (comum em contas novas ou primeiras transações).
-              // Não mostramos a tela de "Pagamento confirmado" (seria enganoso),
-              // só avisamos o cliente e registramos no banco como pendente.
-              statusMsg.style.color = '#B8860B';
-              statusMsg.textContent = 'Pagamento em análise pelo Mercado Pago (' + (data.status_detail || 'revisão manual') + '). Você será avisado assim que o resultado sair — pode levar até 2 dias úteis.';
-              pedido.cartaoId = data.id;
-              salvarPedidoNoBanco('Cartão de crédito', data.id, 'in_process');
               resolve();
             } else {
               statusMsg.style.color = '#E04C4C';
@@ -3725,4 +3866,3 @@ checarStatusLoja();
 </script>
 </body>
 </html>
-      
